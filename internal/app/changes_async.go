@@ -118,6 +118,11 @@ func readChangesGroups(dirs []string) []changesGroup {
 			}
 		}
 		behind, ahead, upstream := git.SyncCounts(dir)
+		branch := git.BranchName(dir)
+		if branch == "HEAD" {
+			// A detached HEAD reports itself as "HEAD" rather than a branch.
+			branch = ""
+		}
 		groups = append(groups, changesGroup{
 			Dir:      dir,
 			Name:     filepath.Base(dir),
@@ -126,6 +131,7 @@ func readChangesGroups(dirs []string) []changesGroup {
 			Upstream: upstream,
 			Behind:   behind,
 			Ahead:    ahead,
+			Branch:   branch,
 		})
 	}
 	return groups

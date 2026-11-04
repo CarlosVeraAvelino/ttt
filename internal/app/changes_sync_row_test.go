@@ -50,20 +50,20 @@ func TestSyncRowWithoutRepoIsHidden(t *testing.T) {
 
 func TestSyncRowShowsFetchAndPushWhenOriginHasNoNewCommits(t *testing.T) {
 	cp := NewChangesPanel()
-	cp.groups = []changesGroup{{Dir: "/repo", Upstream: true, Ahead: 1}}
+	cp.groups = []changesGroup{{Dir: "/repo", Upstream: true, Ahead: 1, Branch: "main"}}
 	cp.rebuildSyncRow()
 
-	if want := []string{"Fetch", "Push ↑1"}; !syncRowSameLabels(syncRowLabels(t, cp), want) {
+	if want := []string{"Fetch", "Push ↑1", "main ▾", "Pull request", "GitHub"}; !syncRowSameLabels(syncRowLabels(t, cp), want) {
 		t.Fatalf("labels = %q, want %q", syncRowLabels(t, cp), want)
 	}
 }
 
 func TestSyncRowAddsPullWhenOriginIsAhead(t *testing.T) {
 	cp := NewChangesPanel()
-	cp.groups = []changesGroup{{Dir: "/repo", Upstream: true, Behind: 2, Ahead: 1}}
+	cp.groups = []changesGroup{{Dir: "/repo", Upstream: true, Behind: 2, Ahead: 1, Branch: "main"}}
 	cp.rebuildSyncRow()
 
-	if want := []string{"Fetch", "Pull ↓2", "Push ↑1"}; !syncRowSameLabels(syncRowLabels(t, cp), want) {
+	if want := []string{"Fetch", "Pull ↓2", "Push ↑1", "main ▾", "Pull request", "GitHub"}; !syncRowSameLabels(syncRowLabels(t, cp), want) {
 		t.Fatalf("labels = %q, want %q", syncRowLabels(t, cp), want)
 	}
 }
@@ -73,7 +73,7 @@ func TestSyncRowWithoutUpstreamOffersPushButNoPull(t *testing.T) {
 	cp.groups = []changesGroup{{Dir: "/repo"}}
 	cp.rebuildSyncRow()
 
-	if want := []string{"Fetch", "Push"}; !syncRowSameLabels(syncRowLabels(t, cp), want) {
+	if want := []string{"Fetch", "Push", "Branch", "Pull request", "GitHub"}; !syncRowSameLabels(syncRowLabels(t, cp), want) {
 		t.Fatalf("labels = %q, want %q", syncRowLabels(t, cp), want)
 	}
 }

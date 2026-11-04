@@ -30,6 +30,20 @@ func OpCreateBranch(name string) RepoOp {
 	return RepoOp{Name: "branch", Run: func(dir string) error { return git.CheckoutNewBranch(dir, name) }}
 }
 
+func OpSwitchBranch(name string) RepoOp {
+	return RepoOp{Name: "switch", Run: func(dir string) error { return git.SwitchBranch(dir, name) }}
+}
+
+// OpCreatePullRequest writes the new pull request's URL to url, which the
+// caller reads once the task reports success.
+func OpCreatePullRequest(base, head, title, body string, url *string) RepoOp {
+	return RepoOp{Name: "pull-request", Run: func(dir string) error {
+		created, err := git.CreatePullRequest(dir, base, head, title, body)
+		*url = created
+		return err
+	}}
+}
+
 // RepoTask is a unit of background source-control work.
 type RepoTask struct {
 	Progress string // shown in the status bar while running, e.g. "Pulling"
@@ -99,7 +113,7 @@ func (a *App) HandleRepoOpResult(r *RepoOpResult) {
 func repositoryResourcesForTask(task RepoTask) RepositoryResource {
 	resources := RepositoryWorktree
 	for _, op := range task.Ops {
-		if op.Name == "commit" || op.Name == "pull" || op.Name == "branch" {
+		if op.Name == "commit" || op.Name == "pull" || op.Name == "branch" || op.Name == "switch" {
 			resources |= RepositoryHistory
 		}
 	}

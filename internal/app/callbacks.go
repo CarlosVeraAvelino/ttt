@@ -858,6 +858,9 @@ func registerWidgetCallbacks(app *App) {
 	app.Changes.OnGroupMenu = app.ShowGroupMenu
 	app.Changes.OnCommit = app.CommitChanges
 	app.Changes.OnSync = app.RunSyncOp
+	app.Changes.OnBranchMenu = app.ShowBranchMenu
+	app.Changes.OnPullRequest = app.ShowPullRequestDialog
+	app.Changes.OnGitHub = app.OpenRepoOnGitHub
 	app.Changes.OnConfirmDiscard = app.ConfirmDiscard
 	app.Changes.OnError = app.StatusError
 	app.Changes.OnRefresh = app.RefreshChanges

@@ -73,6 +73,7 @@ type cliFlags struct {
 	debug        bool
 	listen       bool
 	stdin        bool
+	changes      bool
 	noForward    bool
 }
 
@@ -125,6 +126,9 @@ func parseFlags() cliFlags {
 			i++
 		case "--new-window":
 			f.noForward = true
+		case "--changes":
+			f.noForward = true
+			f.changes = true
 		case "-":
 			f.noForward = true
 			f.stdin = true
@@ -205,6 +209,7 @@ Options:
   --plugin <file>     Load a Lua plugin file on startup without approval, with
                       the name and permissions of a plugin.ttt.json next to it;
                       without one, every permission except system.exec
+  --changes           Open the current changes (Git) view at startup
   --new-window        Start a separate editor even when reuseWindow is enabled
   --debug             Enable debug mode regardless of config setting
   --listen            Start an HTTP command server on 127.0.0.1:4242
@@ -434,6 +439,11 @@ Docs: https://tttedit.dev
 	if flags.listen {
 		editor.LogOutput("info", "ttt", "Listening on "+app.ListenAddress()+" (POST /exec)")
 		go app.StartListenServer(editor)
+	}
+
+	if flags.changes {
+		// Waits for the repository to load when the view is not ready yet.
+		editor.OpenCurrentChanges()
 	}
 
 	app.RunEventLoop(screen, renderer, editor, &running, editor.CloseTerminal, func() {

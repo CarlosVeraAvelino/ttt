@@ -83,6 +83,9 @@ type ChangesPanel struct {
 	OnPanelMenu      func(screenX, screenY int)
 	OnCommit         func(dir string, message string)
 	OnSync           func(dir string, op RepoOp)
+	OnBranchMenu     func(dir string, x, y int)
+	OnPullRequest    func(dir string)
+	OnGitHub         func(dir string)
 	OnGroupMenu      func(dir string, screenX, screenY int)
 	OnPRGroupMenu    func(group *ui.ChangesGroup, screenX, screenY int)
 	OnRefreshPR      func(url string)
@@ -118,6 +121,8 @@ type changesGroup struct {
 	Upstream bool
 	Behind   int
 	Ahead    int
+	// Branch is the checked-out branch, empty when HEAD is detached.
+	Branch string
 }
 
 type workFileRef struct {
@@ -886,17 +891,55 @@ func (cp *ChangesPanel) rebuildSyncRow() {
 	}
 	cp.syncRow.Children = append(cp.syncRow.Children,
 		cp.syncButton(pushLabel, g.Dir, OpPush))
+
+	branchLabel := "Branch"
+	if g.Branch != "" {
+		branchLabel = g.Branch + " ▾"
+	}
+	cp.syncRow.Children = append(cp.syncRow.Children,
+		cp.menuButton(branchLabel, func(b *widgets.ButtonWidget) {
+			if cp.OnBranchMenu != nil {
+				r := b.GetRect()
+				cp.OnBranchMenu(g.Dir, r.X, r.Y+r.H)
+			}
+		}))
+	cp.syncRow.Children = append(cp.syncRow.Children,
+		cp.plainButton("Pull request", func() {
+			if cp.OnPullRequest != nil {
+				cp.OnPullRequest(g.Dir)
+			}
+		}))
+	cp.syncRow.Children = append(cp.syncRow.Children,
+		cp.plainButton("GitHub", func() {
+			if cp.OnGitHub != nil {
+				cp.OnGitHub(g.Dir)
+			}
+		}))
 }
 
 func (cp *ChangesPanel) syncButton(label, dir string, op RepoOp) *widgets.ButtonWidget {
-	return widgets.NewButtonWidget(widgets.ButtonConfig{
-		Label: label,
-		OnClick: func() {
-			if cp.OnSync != nil {
-				cp.OnSync(dir, op)
-			}
-		},
+	return cp.plainButton(label, func() {
+		if cp.OnSync != nil {
+			cp.OnSync(dir, op)
+		}
 	})
+}
+
+func (cp *ChangesPanel) plainButton(label string, onClick func()) *widgets.ButtonWidget {
+	return widgets.NewButtonWidget(widgets.ButtonConfig{
+		Label:   label,
+		OnClick: onClick,
+	})
+}
+
+// menuButton passes its own rectangle to onClick, so a menu can open under it.
+func (cp *ChangesPanel) menuButton(label string, onClick func(*widgets.ButtonWidget)) *widgets.ButtonWidget {
+	var b *widgets.ButtonWidget
+	b = widgets.NewButtonWidget(widgets.ButtonConfig{
+		Label:   label,
+		OnClick: func() { onClick(b) },
+	})
+	return b
 }
 
 // syncGroup is the repo the sync buttons act on: the selected one, otherwise
