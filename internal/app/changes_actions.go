@@ -47,15 +47,36 @@ func (a *App) ShowBranchMenu(dir string, x, y int) {
 			current = b.Name
 		}
 	}
-	a.showNamedMenu("changes.branch", names, current, x, y, func(name string) {
-		if name == current {
-			return
-		}
-		a.RunRepoTask(RepoTask{
-			Progress: "Switching branch", Done: "Switched to " + name,
-			Dirs: []string{dir}, Ops: []RepoOp{OpSwitchBranch(name)},
+	a.showBranchItems(dir, names, current, x, y)
+}
+
+// showBranchItems is the branch menu: a row per branch, the current one
+// ticked, then New Branch, which runs the existing git.newBranch command.
+func (a *App) showBranchItems(dir string, names []string, current string, x, y int) {
+	items := make([]ui.ContextMenuItem, 0, len(names)+2)
+	for i, name := range names {
+		id := fmt.Sprintf("changes.branch.%d", i)
+		picked := name
+		a.Reg.Register(command.Command{
+			ID: id, Title: "Switch to " + picked,
+			Handler: func() {
+				if picked == current {
+					return
+				}
+				a.RunRepoTask(RepoTask{
+					Progress: "Switching branch", Done: "Switched to " + picked,
+					Dirs: []string{dir}, Ops: []RepoOp{OpSwitchBranch(picked)},
+				})
+			},
 		})
-	})
+		checked := ui.MenuUnchecked
+		if name == current {
+			checked = ui.MenuChecked
+		}
+		items = append(items, ui.ContextMenuItem{Label: name, Command: id, Checked: checked})
+	}
+	items = append(items, ui.MenuSep(), ui.ContextMenuItem{Label: "New Branch…", Command: "git.newBranch"})
+	openContextMenu(a, items, x, y)
 }
 
 // ShowPullRequestDialog asks for a base branch on origin, the branch to
