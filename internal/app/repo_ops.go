@@ -30,6 +30,10 @@ func OpCreateBranch(name string) RepoOp {
 	return RepoOp{Name: "branch", Run: func(dir string) error { return git.CheckoutNewBranch(dir, name) }}
 }
 
+func OpCreateBranchFrom(name, base string) RepoOp {
+	return RepoOp{Name: "branch", Run: func(dir string) error { return git.CreateBranchFrom(dir, name, base) }}
+}
+
 func OpSwitchBranch(name string) RepoOp {
 	return RepoOp{Name: "switch", Run: func(dir string) error { return git.SwitchBranch(dir, name) }}
 }

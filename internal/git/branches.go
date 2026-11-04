@@ -120,3 +120,13 @@ func runGit(dir string, args ...string) error {
 	}
 	return nil
 }
+
+// CreateBranchFrom makes a branch called name starting at base and checks it
+// out. base may be a local branch or a remote-tracking one such as origin/main.
+func CreateBranchFrom(dir, name, base string) error {
+	cmd := exec.Command("git", "-C", dir, "switch", "-c", name, base)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%s: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}

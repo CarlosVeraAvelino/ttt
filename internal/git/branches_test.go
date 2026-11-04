@@ -74,3 +74,30 @@ func TestRepoWebURLWithoutOriginIsEmpty(t *testing.T) {
 		t.Fatalf("RepoWebURL without origin = %q, want empty", got)
 	}
 }
+
+func TestCreateBranchFromStartsAtChosenBase(t *testing.T) {
+	dir := setupTestRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "add", "a.txt")
+	gitRun(t, dir, "commit", "-m", "first")
+	gitRun(t, dir, "branch", "base-here")
+	gitRun(t, dir, "switch", "-c", "elsewhere")
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "add", "b.txt")
+	gitRun(t, dir, "commit", "-m", "second")
+
+	if err := CreateBranchFrom(dir, "from-base", "base-here"); err != nil {
+		t.Fatalf("CreateBranchFrom: %v", err)
+	}
+	if got := BranchName(dir); got != "from-base" {
+		t.Fatalf("current branch = %q, want from-base", got)
+	}
+	// base-here points at the first commit, so b.txt must not exist.
+	if _, err := os.Stat(filepath.Join(dir, "b.txt")); !os.IsNotExist(err) {
+		t.Fatalf("new branch did not start from base-here (b.txt exists, err=%v)", err)
+	}
+}

@@ -75,8 +75,78 @@ func (a *App) showBranchItems(dir string, names []string, current string, x, y i
 		}
 		items = append(items, ui.ContextMenuItem{Label: name, Command: id, Checked: checked})
 	}
-	items = append(items, ui.MenuSep(), ui.ContextMenuItem{Label: "New Branch…", Command: "git.newBranch"})
+	newID := "changes.branch.new"
+	a.Reg.Register(command.Command{
+		ID: newID, Title: "New Branch",
+		Handler: func() { a.ShowNewBranchDialog(dir) },
+	})
+	items = append(items, ui.MenuSep(), ui.ContextMenuItem{Label: "New Branch…", Command: newID})
 	openContextMenu(a, items, x, y)
+}
+
+// ShowNewBranchDialog asks for a name and the branch to start it from. The
+// starting point is the checked-out branch unless a menu picks another local
+// or origin branch.
+func (a *App) ShowNewBranchDialog(dir string) {
+	local, err := git.LocalBranches(dir)
+	if err != nil {
+		a.StatusError("Could not list branches: " + err.Error())
+		return
+	}
+	remote, _ := git.RemoteBranches(dir)
+	options := make([]string, 0, len(local)+len(remote))
+	base := ""
+	for _, b := range local {
+		options = append(options, b.Name)
+		if b.Current {
+			base = b.Name
+		}
+	}
+	if base == "" && len(options) > 0 {
+		base = options[0]
+	}
+	for _, name := range remote {
+		options = append(options, "origin/"+name)
+	}
+
+	name := widgets.NewInputWidget(widgets.InputConfig{Placeholder: "Branch name"})
+	var baseButton *widgets.ButtonWidget
+	baseButton = menuButtonAt("From: "+base, func(x, y int) {
+		a.showNamedMenu("changes.newbranch.base", options, base, x, y, func(picked string) {
+			base = picked
+			baseButton.SetLabel("From: " + picked)
+		})
+	})
+
+	dialog := widgets.NewDialogWidget(60)
+	dialog.Title = "New Branch"
+	dialog.Borders = *a.Borders
+	dialog.SetContent(widgets.NewVStackWidget(name, baseButton))
+	dialog.Buttons = []widgets.DialogButton{
+		{Label: "&Cancel", Handler: func() { a.DismissDialog() }},
+		{Label: "&Create", Handler: func() {
+			branch := strings.TrimSpace(name.Text())
+			if branch == "" {
+				a.StatusWarn("A branch needs a name")
+				return
+			}
+			a.DismissDialog()
+			a.RunRepoTask(RepoTask{
+				Progress: "Creating branch", Done: "Created branch: " + branch,
+				Dirs: []string{dir}, Ops: []RepoOp{OpCreateBranchFrom(branch, base)},
+			})
+		}},
+	}
+	dialog.OnDismiss = func() { a.DismissDialog() }
+	dialog.Build()
+
+	a.ShowDialog(ui.NewWidgetAdapter(dialog))
+}
+
+// ShowChangesSidebar shows the sidebar's Changes panel, as its activity bar
+// entry does. The repository's changes load on their own.
+func (a *App) ShowChangesSidebar() {
+	a.ShowPanel("changes", a.Changes.Adapter)
 }
 
 // ShowPullRequestDialog asks for a base branch on origin, the branch to
