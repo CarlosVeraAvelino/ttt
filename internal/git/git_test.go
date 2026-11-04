@@ -1402,3 +1402,88 @@ func TestDiffWorkingTreeFileContextUsesExplicitRevisionAndRawPath(t *testing.T) 
 		t.Fatalf("unborn raw-path diff err=%v:\n%s", err, patch)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Fetch and SyncCounts
+// ---------------------------------------------------------------------------
+
+// setupTrackingClones returns a bare remote plus two clones of it on main, so
+// one clone can publish commits that the other only sees after a fetch.
+func setupTrackingClones(t *testing.T) (local, other string) {
+	t.Helper()
+	root := t.TempDir()
+	remote := filepath.Join(root, "remote.git")
+	local = filepath.Join(root, "local")
+	other = filepath.Join(root, "other")
+
+	gitRun(t, root, "init", "--bare", "-b", "main", remote)
+	gitRun(t, root, "clone", remote, local)
+	gitRun(t, local, "config", "user.email", "test@test.com")
+	gitRun(t, local, "config", "user.name", "Test User")
+	gitRun(t, local, "checkout", "-b", "main")
+	if err := os.WriteFile(filepath.Join(local, "a.txt"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, local, "add", "a.txt")
+	gitRun(t, local, "commit", "-m", "first")
+	gitRun(t, local, "push", "-u", "origin", "main")
+
+	gitRun(t, root, "clone", remote, other)
+	gitRun(t, other, "config", "user.email", "test@test.com")
+	gitRun(t, other, "config", "user.name", "Test User")
+	return local, other
+}
+
+func TestSyncCountsWithoutUpstreamReportsNothing(t *testing.T) {
+	dir := setupTestRepo(t)
+	if _, _, ok := SyncCounts(dir); ok {
+		t.Fatal("SyncCounts reported an upstream for a repo that tracks nothing")
+	}
+}
+
+func TestSyncCountsAheadAndBehindAfterFetch(t *testing.T) {
+	local, other := setupTrackingClones(t)
+
+	if err := os.WriteFile(filepath.Join(other, "b.txt"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, other, "add", "b.txt")
+	gitRun(t, other, "commit", "-m", "remote work")
+	gitRun(t, other, "push", "origin", "main")
+
+	if err := os.WriteFile(filepath.Join(local, "c.txt"), []byte("three\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, local, "add", "c.txt")
+	gitRun(t, local, "commit", "-m", "local work")
+
+	// Origin's new commit is unknown until the fetch runs.
+	if behind, ahead, ok := SyncCounts(local); !ok || behind != 0 || ahead != 1 {
+		t.Fatalf("before fetch: behind=%d ahead=%d ok=%v, want 0 1 true", behind, ahead, ok)
+	}
+
+	if err := Fetch(local); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if behind, ahead, ok := SyncCounts(local); !ok || behind != 1 || ahead != 1 {
+		t.Fatalf("after fetch: behind=%d ahead=%d ok=%v, want 1 1 true", behind, ahead, ok)
+	}
+}
+
+func TestFetchLeavesWorktreeUntouched(t *testing.T) {
+	local, other := setupTrackingClones(t)
+
+	if err := os.WriteFile(filepath.Join(other, "b.txt"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, other, "add", "b.txt")
+	gitRun(t, other, "commit", "-m", "remote work")
+	gitRun(t, other, "push", "origin", "main")
+
+	if err := Fetch(local); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(local, "b.txt")); !os.IsNotExist(err) {
+		t.Fatalf("Fetch changed the worktree: b.txt exists (err=%v)", err)
+	}
+}

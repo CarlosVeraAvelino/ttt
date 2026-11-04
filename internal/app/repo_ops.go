@@ -17,8 +17,9 @@ type RepoOp struct {
 }
 
 var (
-	OpPull = RepoOp{Name: "pull", Run: git.Pull}
-	OpPush = RepoOp{Name: "push", Run: git.Push}
+	OpFetch = RepoOp{Name: "fetch", Run: git.Fetch}
+	OpPull  = RepoOp{Name: "pull", Run: git.Pull}
+	OpPush  = RepoOp{Name: "push", Run: git.Push}
 )
 
 func OpCommit(message string) RepoOp {

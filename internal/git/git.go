@@ -227,6 +227,38 @@ func Pull(dir string) error {
 	return nil
 }
 
+// Fetch updates the remote-tracking branches without touching the worktree.
+func Fetch(dir string) error {
+	cmd := exec.Command("git", "-C", dir, "fetch", "--prune")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%s: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// SyncCounts reports the commits the current branch is behind and ahead of its
+// upstream, as of the last fetch. ok is false when there is no upstream to
+// compare against.
+func SyncCounts(dir string) (behind, ahead int, ok bool) {
+	if !hasUpstream(dir) {
+		return 0, 0, false
+	}
+	out, err := exec.Command("git", "-C", dir, "rev-list", "--left-right", "--count", "@{u}...HEAD").Output()
+	if err != nil {
+		return 0, 0, false
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) != 2 {
+		return 0, 0, false
+	}
+	behind, errBehind := strconv.Atoi(fields[0])
+	ahead, errAhead := strconv.Atoi(fields[1])
+	if errBehind != nil || errAhead != nil {
+		return 0, 0, false
+	}
+	return behind, ahead, true
+}
+
 // Clone runs without a terminal prompt: the editor owns the tty, so git asking
 // for credentials would hang instead of failing.
 func Clone(url, dest string) error {

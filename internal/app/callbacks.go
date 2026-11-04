@@ -594,6 +594,22 @@ func (a *App) ShowGroupMenu(dir string, sx, sy int) {
 	openContextMenu(a, items, sx, sy)
 }
 
+// RunSyncOp runs one of the origin buttons in the Changes panel in the
+// background, with the same progress and result reporting as the menu commands.
+func (a *App) RunSyncOp(dir string, op RepoOp) {
+	progress, done := "Fetching", "Fetched successfully"
+	switch op.Name {
+	case "pull":
+		progress, done = "Pulling", "Pulled successfully"
+	case "push":
+		progress, done = "Pushing", "Pushed successfully"
+	}
+	a.RunRepoTask(RepoTask{
+		Progress: progress, Done: done,
+		Dirs: []string{dir}, Ops: []RepoOp{op},
+	})
+}
+
 func (a *App) CommitChanges(dir string, message string) {
 	a.RunRepoTask(RepoTask{
 		Progress: "Committing",
@@ -841,6 +857,7 @@ func registerWidgetCallbacks(app *App) {
 	app.Changes.OnRefreshPR = app.FetchAndOpenPR
 	app.Changes.OnGroupMenu = app.ShowGroupMenu
 	app.Changes.OnCommit = app.CommitChanges
+	app.Changes.OnSync = app.RunSyncOp
 	app.Changes.OnConfirmDiscard = app.ConfirmDiscard
 	app.Changes.OnError = app.StatusError
 	app.Changes.OnRefresh = app.RefreshChanges

@@ -18,6 +18,7 @@ import (
 type ChangesPanel struct {
 	Tree      *widgets.TreeWidget
 	Input     *widgets.InputWidget
+	syncRow   *widgets.HStackWidget
 	CommitLog *widgets.TreeWidget
 	Adapter   *ui.WidgetAdapter
 	Split     *ui.ContentSplitWidget
@@ -81,6 +82,7 @@ type ChangesPanel struct {
 	OnRightClick     func(dir string, status git.FileStatus, screenX, screenY int)
 	OnPanelMenu      func(screenX, screenY int)
 	OnCommit         func(dir string, message string)
+	OnSync           func(dir string, op RepoOp)
 	OnGroupMenu      func(dir string, screenX, screenY int)
 	OnPRGroupMenu    func(group *ui.ChangesGroup, screenX, screenY int)
 	OnRefreshPR      func(url string)
@@ -111,6 +113,11 @@ type changesGroup struct {
 	Name     string
 	Staged   []git.FileStatus
 	Unstaged []git.FileStatus
+	// Upstream is false when the branch tracks nothing, so Behind and Ahead
+	// have nothing to count against.
+	Upstream bool
+	Behind   int
+	Ahead    int
 }
 
 type workFileRef struct {
@@ -209,6 +216,7 @@ func NewChangesPanel(dirs ...string) *ChangesPanel {
 			cp.handleMenu(node, sx, sy)
 		},
 		OnSelect: func(node *widgets.TreeNode) {
+			cp.rebuildSyncRow()
 			cp.refreshCommitLog()
 		},
 		OnFocus: func() {
@@ -259,7 +267,10 @@ func NewChangesPanel(dirs ...string) *ChangesPanel {
 
 	divTop := widgets.NewDividerWidget(widgets.DividerConfig{})
 
-	top := widgets.NewVStackWidget(cp.Tree, divTop, cp.Input)
+	cp.syncRow = widgets.NewHStackWidget()
+	cp.syncRow.Gap = 1
+
+	top := widgets.NewVStackWidget(cp.Tree, divTop, cp.Input, cp.syncRow)
 	bottom := widgets.NewVStackWidget(logTitle, logBox)
 
 	cp.Split = ui.NewContentSplitWidget()
@@ -334,6 +345,7 @@ func (cp *ChangesPanel) applyWorkingTree(groups []changesGroup) {
 	cp.groups = groups
 	cp.multiRoot = len(cp.groups)+len(cp.PRGroups) > 1
 	cp.buildTree()
+	cp.rebuildSyncRow()
 	if cp.OnRefreshed != nil {
 		cp.OnRefreshed()
 	}
@@ -847,6 +859,60 @@ func (cp *ChangesPanel) TotalChanges() int {
 		n += len(g.Staged) + len(g.Unstaged)
 	}
 	return n
+}
+
+// rebuildSyncRow shows the origin buttons for the repo the commit targets, in
+// the spirit of VS Code's sync actions. Fetch is always offered because it is
+// the only way to learn about new commits on origin. Pull appears only when
+// origin is ahead, and Push always, labelled with the commits it would send.
+func (cp *ChangesPanel) rebuildSyncRow() {
+	cp.syncRow.Children = nil
+	cp.syncRow.FixedHeight = 0
+	g, ok := cp.syncGroup()
+	if !ok {
+		return
+	}
+	cp.syncRow.FixedHeight = 1
+
+	cp.syncRow.Children = append(cp.syncRow.Children,
+		cp.syncButton("Fetch", g.Dir, OpFetch))
+	if g.Upstream && g.Behind > 0 {
+		cp.syncRow.Children = append(cp.syncRow.Children,
+			cp.syncButton(fmt.Sprintf("Pull ↓%d", g.Behind), g.Dir, OpPull))
+	}
+	pushLabel := "Push"
+	if g.Ahead > 0 {
+		pushLabel = fmt.Sprintf("Push ↑%d", g.Ahead)
+	}
+	cp.syncRow.Children = append(cp.syncRow.Children,
+		cp.syncButton(pushLabel, g.Dir, OpPush))
+}
+
+func (cp *ChangesPanel) syncButton(label, dir string, op RepoOp) *widgets.ButtonWidget {
+	return widgets.NewButtonWidget(widgets.ButtonConfig{
+		Label: label,
+		OnClick: func() {
+			if cp.OnSync != nil {
+				cp.OnSync(dir, op)
+			}
+		},
+	})
+}
+
+// syncGroup is the repo the sync buttons act on: the selected one, otherwise
+// the first, matching how an unselected commit falls back to a group.
+func (cp *ChangesPanel) syncGroup() (changesGroup, bool) {
+	if dir := cp.selectedGroupDir(); dir != "" {
+		for _, g := range cp.groups {
+			if g.Dir == dir {
+				return g, true
+			}
+		}
+	}
+	if len(cp.groups) > 0 {
+		return cp.groups[0], true
+	}
+	return changesGroup{}, false
 }
 
 func (cp *ChangesPanel) commitFocusedGroup() {

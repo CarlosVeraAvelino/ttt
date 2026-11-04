@@ -117,11 +117,15 @@ func readChangesGroups(dirs []string) []changesGroup {
 				unstaged = append(unstaged, f)
 			}
 		}
+		behind, ahead, upstream := git.SyncCounts(dir)
 		groups = append(groups, changesGroup{
 			Dir:      dir,
 			Name:     filepath.Base(dir),
 			Staged:   staged,
 			Unstaged: unstaged,
+			Upstream: upstream,
+			Behind:   behind,
+			Ahead:    ahead,
 		})
 	}
 	return groups
